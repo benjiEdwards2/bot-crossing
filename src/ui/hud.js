@@ -3,6 +3,7 @@ import { PLANETS } from '../world/planet.js'
 import { TIMES, systemTimeOfDay } from '../world/sky.js'
 import { STATUS_LABEL } from '../game/colony.js'
 import { FACE, FRAME_COLS, FRAME_ROWS } from '../agents/faces.js'
+import { MODEL_SUITS, UNKNOWN_MODEL_SUIT, SUIT_TONES } from '../agents/astronauts.js'
 import { PLOT_PALETTE, hashString } from '../world/plots.js'
 
 /**
@@ -902,6 +903,17 @@ function ago(ts) {
   return `${Math.floor(s / 86400)}d ago`
 }
 
+/**
+ * The suit-colour legend, from the same table the suits are painted from — the two rows the
+ * matcher never names (an unrecognised model, no model at all) are spelt out here so the
+ * legend covers every suit on the map.
+ */
+const MODEL_LEGEND = [
+  ...MODEL_SUITS.map(([, tone, label]) => ({ tone, label })),
+  { tone: UNKNOWN_MODEL_SUIT, label: 'another model' },
+  { tone: SUIT_TONES[0], label: 'no model recorded' },
+]
+
 const TEMPLATE = `
 <aside class="side panel">
   <header class="brandbar">
@@ -923,6 +935,9 @@ const TEMPLATE = `
           <span class="label">0 hidden</span>
         </button>
         <div class="hidden-projects" hidden></div>
+      </div>
+      <div class="models-strip" title="Suit colour = the model inside. Grey: another model · white: no model recorded">
+        ${MODEL_SUITS.map(([, tone, label]) => `<span class="m"><i class="dot" style="background:${hex(tone)}"></i>${label}</span>`).join('')}
       </div>
     </div>
 
@@ -1016,11 +1031,14 @@ const TEMPLATE = `
       </div>
     </div>
     <div style="margin-top:16px">
+      <div class="legend-head">Status badges</div>
       <div class="legend-row"><i class="badge" style="background:#1a2b46;color:#8fb4ee">?</i> waiting on your reply — click to open the thread</div>
       <div class="legend-row"><i class="badge" style="background:#3d1c1c;color:#e88b8b">!</i> the session hit an error</div>
       <div class="legend-row"><i class="badge" style="background:#16301f;color:#7fd39a">⚒</i> running right now, building</div>
       <div class="legend-row"><i class="badge" style="background:#332b12;color:#e6c67f">✓</i> its pull request landed</div>
       <div class="legend-row"><i class="badge" style="background:#1d1f2e;color:#a9a8c0">z</i> nothing for three days</div>
+      <div class="legend-head">Suit colours — which model is inside</div>
+      ${MODEL_LEGEND.map((m) => `<div class="legend-row"><i class="suit" style="background:${hex(m.tone)}"></i> ${m.label}</div>`).join('\n      ')}
     </div>
     <div style="margin-top:18px;display:flex;justify-content:flex-end">
       <button class="btn primary" id="btn-help-close">Got it</button>

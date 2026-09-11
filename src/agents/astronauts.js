@@ -26,20 +26,20 @@ import { attachMatrixAt, decorateSkinned, frameFor } from './crew.js'
  * size these characters render.
  */
 
-const SUIT_TONES = [0xf3f1ec, 0xe8e4dc, 0xf7f4ee, 0xdfe4e8, 0xf1e9df]
+export const SUIT_TONES = [0xf3f1ec, 0xe8e4dc, 0xf7f4ee, 0xdfe4e8, 0xf1e9df]
 
 /**
  * Suit colour by model family — the body says which model a thread runs, while trim, eyes
  * and badge stay the status. A model the palette does not know wears grey rather than
  * borrowing one of the four; a thread with no model recorded keeps the neutral tones.
  */
-const MODEL_SUITS = [
-  [/fable/i, 0xc8453c], // red
-  [/opus/i, 0xe0862f], // orange
-  [/sonnet/i, 0x3d7bd9], // blue
-  [/haiku/i, 0x46a758], // green
+export const MODEL_SUITS = [
+  [/fable/i, 0xc8453c, 'Fable'], // red
+  [/opus/i, 0xe0862f, 'Opus'], // orange
+  [/sonnet/i, 0x3d7bd9, 'Sonnet'], // blue
+  [/haiku/i, 0x46a758, 'Haiku'], // green
 ]
-const UNKNOWN_MODEL_SUIT = 0x969ca3
+export const UNKNOWN_MODEL_SUIT = 0x969ca3
 
 function suitFor(entry) {
   const model = entry.thread?.model
