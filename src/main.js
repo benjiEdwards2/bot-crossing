@@ -18,6 +18,7 @@ import {
   revealFolder,
 } from './game/api.js'
 import { hideProject, hiddenCatalog, unhideProject } from './game/hidden-projects.js'
+import { projectKeyFor } from './game/project-key.js'
 
 /**
  * Boot and the outer game loop.
@@ -193,7 +194,7 @@ const actions = {
     // If the open thread belonged to the repo that just left, nothing is selected any more.
     if (selectedId) {
       const thread = threads.find((t) => t.id === selectedId)
-      if (thread?.project === name) select(null, {})
+      if (thread && projectKeyFor(thread) === name) select(null, {})
     }
     selectedProject = null
     applyThreads(threads)
@@ -293,7 +294,7 @@ function select(id, { fly = false } = {}) {
   const thread = threads.find((t) => t.id === id) || agent.thread
   hud.setSelection(agent, thread)
   // Picking somebody is also picking the zone they are standing on: the sidebar follows.
-  if (thread?.project && colony.plots.has(thread.project)) selectedProject = thread.project
+  if (thread && colony.plots.has(projectKeyFor(thread))) selectedProject = projectKeyFor(thread)
   syncProject()
   if (fly) {
     rig.focus(new THREE.Vector3(agent.pos.x, 0, agent.pos.z), { distance: Math.min(rig.desiredDistance, 26) })
@@ -305,7 +306,7 @@ function selectProject(name, { fly = false } = {}) {
   if (!name || !colony.plots.has(name)) return
   selectedProject = name
   const current = threads.find((t) => t.id === selectedId)
-  if (current && current.project !== name) select(null, {})
+  if (current && projectKeyFor(current) !== name) select(null, {})
   else syncProject()
   if (fly) actions.focusProject(name)
 }
@@ -331,7 +332,7 @@ function harnessLabel(id) {
 function harnessForProject(name) {
   const counts = new Map()
   for (const thread of colony.threads.values()) {
-    if (thread.project !== name || !thread.harness) continue
+    if (projectKeyFor(thread) !== name || !thread.harness) continue
     counts.set(thread.harness, (counts.get(thread.harness) ?? 0) + 1)
   }
   let best = ''
@@ -347,7 +348,7 @@ function harnessForProject(name) {
 function pathForProject(name) {
   const counts = new Map()
   for (const thread of colony.threads.values()) {
-    if (thread.project !== name) continue
+    if (projectKeyFor(thread) !== name) continue
     const dir = thread.projectPath || thread.cwd
     if (!dir) continue
     counts.set(dir, (counts.get(dir) ?? 0) + 1)
@@ -377,7 +378,7 @@ function syncProject() {
   }
   const now = Date.now()
   const list = [...colony.threads.values()]
-    .filter((thread) => thread.project === plot.name)
+    .filter((thread) => projectKeyFor(thread) === plot.name)
     .map((thread) => ({
       id: thread.id,
       title: thread.title,
@@ -624,7 +625,7 @@ function applyThreads(list) {
     .map((plot) => ({
       name: plot.name,
       accent: plot.accent,
-      count: list.filter((t) => !t.archived && !archivedSet.has(t.id) && t.project === plot.name).length,
+      count: list.filter((t) => !t.archived && !archivedSet.has(t.id) && projectKeyFor(t) === plot.name).length,
       urgent: colony.urgentPlots?.has(plot.id) ?? false,
     }))
     .sort((a, b) => b.count - a.count)
