@@ -77,6 +77,8 @@ const DESKTOP_SESSIONS = path.join(desktopDataDir(), 'claude-code-sessions')
 const CLI_PROJECTS = path.join(HOME, '.claude', 'projects')
 /** One file per live CLI process: {pid, sessionId, cwd, ...}. Stale files outlive their pid. */
 const CLI_LIVE = path.join(HOME, '.claude', 'sessions')
+/** The desktop app's own settings file, which is also where it keeps sidebar groups. */
+const CONFIG_FILE = path.join(desktopDataDir(), 'claude_desktop_config.json')
 
 const HEAD_BYTES = 192 * 1024
 
@@ -267,6 +269,46 @@ async function scanLiveSessions() {
   return live
 }
 
+const ASSIGNMENT_KEY = /^code:local_([0-9a-f-]+)$/i
+
+/**
+ * The sidebar's own grouping, straight out of the desktop app's settings file: `local_<id>` ->
+ * group name. Pure and synchronous so it can be tested against a plain object rather than a
+ * file on disk — `loadGroupNames` below is the only thing that touches the filesystem.
+ *
+ * The shape is `preferences.epitaxyPrefs["dframe-group-scopes"]`, an object of scopes (one per
+ * account/workspace) each holding a `groups` list of {id, name} and an `assignments` map of
+ * `"code:local_<sessionId>" -> groupId`. Every level is optional and untrusted — a config from a
+ * future app version that has restructured this is read as "no groups", not a crash.
+ */
+export function groupNamesFromConfig(config) {
+  const byDesktopId = new Map()
+  const scopes = config?.preferences?.epitaxyPrefs?.['dframe-group-scopes']
+  if (!scopes || typeof scopes !== 'object') return byDesktopId
+
+  for (const scope of Object.values(scopes)) {
+    const nameById = new Map()
+    for (const g of scope?.groups || []) {
+      if (g?.id && typeof g.name === 'string' && g.name) nameById.set(g.id, g.name)
+    }
+    for (const [key, groupId] of Object.entries(scope?.assignments || {})) {
+      const m = ASSIGNMENT_KEY.exec(key)
+      const name = m && nameById.get(groupId)
+      if (name) byDesktopId.set(`local_${m[1]}`, name)
+    }
+  }
+  return byDesktopId
+}
+
+/** Read-only: `groupNamesFromConfig`'s file-backed input. Missing or unreadable is "no groups". */
+async function loadGroupNames() {
+  try {
+    return groupNamesFromConfig(JSON.parse(await fsp.readFile(CONFIG_FILE, 'utf8')))
+  } catch {
+    return new Map()
+  }
+}
+
 /** Every thread the desktop app has a record for. */
 async function scanDesktopSessions() {
   const out = []
@@ -340,10 +382,11 @@ function toThread(t) {
 }
 
 async function scanThreads() {
-  const [desktop, transcripts, live] = await Promise.all([
+  const [desktop, transcripts, live, groupNames] = await Promise.all([
     scanDesktopSessions(),
     scanTranscripts(),
     scanLiveSessions(),
+    loadGroupNames(),
   ])
   const byId = new Map()
   const add = (thread) => {
@@ -467,6 +510,16 @@ async function scanThreads() {
   // Unread = the thread moved on after you last looked at it; never opened counts as unread.
   // Terminal-only threads have no focus history at all, so "unread" is unknowable — not true.
   for (const thread of threads) {
+    // A merged thread can carry more than one desktop session id (see `mergeThread`); any of
+    // them landing in a sidebar group is enough to place the whole thread in it.
+    for (const id of thread.desktopSessionIds) {
+      const name = groupNames.get(id)
+      if (name) {
+        thread.group = name
+        break
+      }
+    }
+
     const seenAt = thread.recordActivityAt ?? thread.lastActivityAt
     thread.unread = thread.desktopSessionIds.length > 0 && seenAt > thread.lastFocusedAt
     const fresh = now - thread.lastActivityAt < ACTIVE_WINDOW_MS
