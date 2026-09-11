@@ -26,7 +26,27 @@ import { attachMatrixAt, decorateSkinned, frameFor } from './crew.js'
  * size these characters render.
  */
 
-const SUIT_TONES = [0xf3f1ec, 0xe8e4dc, 0xf7f4ee, 0xdfe4e8, 0xf1e9df]
+export const SUIT_TONES = [0xf3f1ec, 0xe8e4dc, 0xf7f4ee, 0xdfe4e8, 0xf1e9df]
+
+/**
+ * Suit colour by model family — the body says which model a thread runs, while trim, eyes
+ * and badge stay the status. A model the palette does not know wears grey rather than
+ * borrowing one of the four; a thread with no model recorded keeps the neutral tones.
+ */
+export const MODEL_SUITS = [
+  [/fable/i, 0xc8453c, 'Fable'], // red
+  [/opus/i, 0xe0862f, 'Opus'], // orange
+  [/sonnet/i, 0x3d7bd9, 'Sonnet'], // blue
+  [/haiku/i, 0x46a758, 'Haiku'], // green
+]
+export const UNKNOWN_MODEL_SUIT = 0x969ca3
+
+function suitFor(entry) {
+  const model = entry.thread?.model
+  if (!model) return SUIT_TONES[(hash(entry.id) >>> 3) % SUIT_TONES.length]
+  for (const [family, tone] of MODEL_SUITS) if (family.test(model)) return tone
+  return UNKNOWN_MODEL_SUIT
+}
 
 /** Trim + eye colour per behaviour. Eyes are pushed past 1.0 so the bloom pass catches them. */
 const AGENT_LOOK = {
@@ -532,7 +552,7 @@ export class Astronauts {
       faceFrame: FACE.boot,
       faceTimer: 0,
       faceIndex: 0,
-      suit: SUIT_TONES[(hash(entry.id) >>> 3) % SUIT_TONES.length],
+      suit: suitFor(entry),
       eye: new THREE.Color(1, 1, 1),
       trim: new THREE.Color(0xffffff),
       hop: 0,
@@ -573,6 +593,13 @@ export class Astronauts {
 
   _updateAgent(agent, entry) {
     agent.thread = entry.thread
+    // The model can change over a thread's life (a /model switch), and the first scan of a
+    // brand-new session may not have known it yet — so the suit follows the thread.
+    const suit = suitFor(entry)
+    if (suit !== agent.suit) {
+      agent.suit = suit
+      agent.colorDirty = true
+    }
     if (entry.site) {
       const moved = Math.hypot(entry.site.x - agent.site.x, entry.site.z - agent.site.z) > 0.05
       agent.site.copy(entry.site)
