@@ -6,12 +6,13 @@
  * that repo until you show it again. It is for the checkout you have forty dead threads in and
  * do not want owning a third of your ground.
  *
- * Keyed on the project *name*, which is what plots are keyed on too. That has a consequence
+ * Keyed on the zone name (`projectKeyFor`), which is what plots are keyed on too. That has a consequence
  * worth knowing: a second checkout of the same repo appearing renames `foo` to `1/foo` (see
  * `disambiguateProjects` in server/scan.mjs) and the hide quietly stops matching. Keying on the
  * path instead would fix it and break the moment somebody moves a folder, and the layout has the
  * same trade — so both are wrong in the same direction, which is at least predictable.
  */
+import { projectKeyFor } from './project-key.js'
 
 export function hideProject(hidden, name) {
   const id = String(name || '')
@@ -28,7 +29,7 @@ export function unhideProject(hidden, name) {
 export function liveThreadsForColony(threads, archivedIds, hiddenProjects) {
   const archived = archivedIds instanceof Set ? archivedIds : new Set(archivedIds)
   const hidden = hiddenProjects instanceof Set ? hiddenProjects : new Set(hiddenProjects)
-  return threads.filter((t) => !t.archived && !archived.has(t.id) && !hidden.has(t.project || 'unknown'))
+  return threads.filter((t) => !t.archived && !archived.has(t.id) && !hidden.has(projectKeyFor(t)))
 }
 
 /**
@@ -39,6 +40,6 @@ export function hiddenCatalog(hidden, threads) {
   const names = [...new Set(hidden.map(String).filter(Boolean))].sort((a, b) => a.localeCompare(b))
   return names.map((name) => ({
     name,
-    count: threads.filter((t) => !t.archived && (t.project || 'unknown') === name).length,
+    count: threads.filter((t) => !t.archived && projectKeyFor(t) === name).length,
   }))
 }
