@@ -20,6 +20,7 @@ import { MAX_AGENT_CAP } from '../core/settings.js'
 import { Particles } from '../agents/particles.js'
 import { Navigation } from '../agents/navigation.js'
 import { liveThreadsForColony } from './hidden-projects.js'
+import { projectKeyFor } from './project-key.js'
 
 /**
  * The colony: everything that turns a list of agent threads into a place.
@@ -372,16 +373,9 @@ export class Colony {
     return this.stats
   }
 
-  /**
-   * Which zone a thread belongs to. Sessions here are titled "<Project> — WP<n>: <Name>"
-   * (or "<Project> — Coordinator"), and when every desktop session runs from the same
-   * folder that prefix is the better grouping than the repo — so a title carrying one is
-   * bunched under its project, and everything else keeps the repo name from the scan.
-   */
+  /** Which zone a thread belongs to — see the exported `projectKeyFor` for the precedence. */
   _projectKeyFor(thread) {
-    const m = /^\s*(.{1,40}?)\s+[—–]\s+\S/.exec(thread.title || '')
-    const prefix = m && m[1].trim()
-    return prefix || thread.project || 'unknown'
+    return projectKeyFor(thread)
   }
 
   _syncPlots(projects) {

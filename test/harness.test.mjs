@@ -12,7 +12,7 @@ import path from 'node:path'
 
 import { HARNESSES } from '../server/harnesses/index.mjs'
 import codex from '../server/harnesses/codex.mjs'
-import claudeCode from '../server/harnesses/claude-code.mjs'
+import claudeCode, { groupNamesFromConfig } from '../server/harnesses/claude-code.mjs'
 import { readTail, findExecutable } from '../server/lib/fsutil.mjs'
 import { schemeOf, openInTerminal } from '../server/lib/xdg.mjs'
 
@@ -146,6 +146,74 @@ test('an absent Codex is simply not detected', async () => {
   assert.equal(await h.detect(), false)
   assert.deepEqual(await h.scanThreads(), [])
   await fsp.rm(home, { recursive: true, force: true })
+})
+
+// ── the desktop app's sidebar groups, mocked as config JSON ───────────────────
+
+const CONFIG = {
+  preferences: {
+    epitaxyPrefs: {
+      'dframe-group-scopes': {
+        'account-1': {
+          groups: [
+            { id: 'g1', name: 'Joey' },
+            { id: 'g2', name: 'Colony' },
+          ],
+          assignments: {
+            'code:local_239839c6-36f3-46c3-a470-0a8106d29e08': 'g2',
+            'code:local_11111111-1111-1111-1111-111111111111': 'g1',
+          },
+        },
+        'account-2': {
+          groups: [{ id: 'g3', name: 'Metcash' }],
+          assignments: { 'code:local_22222222-2222-2222-2222-222222222222': 'g3' },
+        },
+      },
+    },
+  },
+}
+
+test('groupNamesFromConfig joins desktop session ids to their sidebar group name', () => {
+  const names = groupNamesFromConfig(CONFIG)
+  assert.equal(names.get('local_239839c6-36f3-46c3-a470-0a8106d29e08'), 'Colony')
+  assert.equal(names.get('local_11111111-1111-1111-1111-111111111111'), 'Joey')
+  // Every scope is walked, not just the first — groups are per-account.
+  assert.equal(names.get('local_22222222-2222-2222-2222-222222222222'), 'Metcash')
+})
+
+test('groupNamesFromConfig tolerates a config with no groups at all', () => {
+  assert.equal(groupNamesFromConfig({}).size, 0)
+  assert.equal(groupNamesFromConfig(null).size, 0)
+  assert.equal(groupNamesFromConfig({ preferences: {} }).size, 0)
+})
+
+test('groupNamesFromConfig ignores an assignment pointing at a group id with no matching group', () => {
+  const names = groupNamesFromConfig({
+    preferences: {
+      epitaxyPrefs: {
+        'dframe-group-scopes': {
+          scope: { groups: [], assignments: { 'code:local_33333333-3333-3333-3333-333333333333': 'ghost' } },
+        },
+      },
+    },
+  })
+  assert.equal(names.size, 0)
+})
+
+test('groupNamesFromConfig ignores an assignment key that is not a code:local_<uuid> session', () => {
+  const names = groupNamesFromConfig({
+    preferences: {
+      epitaxyPrefs: {
+        'dframe-group-scopes': {
+          scope: {
+            groups: [{ id: 'g1', name: 'Joey' }],
+            assignments: { 'codex:some-other-id': 'g1', 'code:local_bad-id': 'g1' },
+          },
+        },
+      },
+    },
+  })
+  assert.equal(names.size, 0)
 })
 
 // ── shared helpers ────────────────────────────────────────────────────────────
