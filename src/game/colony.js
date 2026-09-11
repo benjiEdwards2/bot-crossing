@@ -270,7 +270,7 @@ export class Colony {
     // Group by repo, biggest project first so the busiest work lands nearest the middle.
     const byProject = new Map()
     for (const thread of live) {
-      const key = thread.project || 'unknown'
+      const key = this._projectKeyFor(thread)
       if (!byProject.has(key)) byProject.set(key, [])
       byProject.get(key).push(thread)
     }
@@ -370,6 +370,18 @@ export class Colony {
     this.stats = { ...stats, done: stats.celebrating }
     this.astronauts.setRoster(roster, this._world())
     return this.stats
+  }
+
+  /**
+   * Which zone a thread belongs to. Sessions here are titled "<Project> — WP<n>: <Name>"
+   * (or "<Project> — Coordinator"), and when every desktop session runs from the same
+   * folder that prefix is the better grouping than the repo — so a title carrying one is
+   * bunched under its project, and everything else keeps the repo name from the scan.
+   */
+  _projectKeyFor(thread) {
+    const m = /^\s*(.{1,40}?)\s+[—–]\s+\S/.exec(thread.title || '')
+    const prefix = m && m[1].trim()
+    return prefix || thread.project || 'unknown'
   }
 
   _syncPlots(projects) {
