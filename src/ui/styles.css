@@ -1470,3 +1470,18 @@ kbd {
   }
 }
 .bot-crossing-canvas { cursor: grab; }
+
+/*
+ * Minimal mode: a colony fed by nothing but the file-share harness — people dropping files
+ * in a folder, not running a coding agent — so the chrome that only makes sense for a thread
+ * (model, branch, the suit legend, starting a fresh session) is dropped. See `Hud.setMinimal`.
+ */
+.hud.minimal #btn-new-session,
+.hud.minimal #btn-copy-path,
+.hud.minimal .thread-pop .tag-model,
+.hud.minimal .thread-pop .tag-branch,
+.hud.minimal .side .models-strip,
+.hud.minimal .help .suit-legend,
+.hud.minimal .help .key-new-session {
+  display: none;
+}

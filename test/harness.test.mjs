@@ -10,7 +10,7 @@ import fsp from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import { HARNESSES } from '../server/harnesses/index.mjs'
+import { HARNESSES, detectedHarnesses } from '../server/harnesses/index.mjs'
 import codex from '../server/harnesses/codex.mjs'
 import claudeCode, { groupNamesFromConfig } from '../server/harnesses/claude-code.mjs'
 import { readTail, findExecutable } from '../server/lib/fsutil.mjs'
@@ -33,6 +33,18 @@ test('every registered harness implements the interface, and none of them can wr
 test('harness ids are unique, and so are the id prefixes they hand out', () => {
   const ids = HARNESSES.map((h) => h.id)
   assert.equal(new Set(ids).size, ids.length)
+})
+
+test('BOT_CROSSING_HARNESSES narrows detection to the allowlist', async () => {
+  const previous = process.env.BOT_CROSSING_HARNESSES
+  try {
+    process.env.BOT_CROSSING_HARNESSES = 'codex'
+    const found = await detectedHarnesses()
+    assert.ok(found.every((h) => h.id === 'codex'), 'only codex may come back, though it may be absent')
+  } finally {
+    if (previous === undefined) delete process.env.BOT_CROSSING_HARNESSES
+    else process.env.BOT_CROSSING_HARNESSES = previous
+  }
 })
 
 // ── ids are prefixed, and refs from the page are not trusted ──────────────────
