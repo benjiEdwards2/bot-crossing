@@ -9,18 +9,27 @@
 import claudeCode from './claude-code.mjs'
 import codex from './codex.mjs'
 import cursor from './cursor.mjs'
+import fileShare from './file-share.mjs'
 
-export const HARNESSES = [claudeCode, codex, cursor]
+export const HARNESSES = [claudeCode, codex, cursor, fileShare]
 
 export const harnessById = (id) => HARNESSES.find((h) => h.id === id) || null
 
 /**
  * Which harnesses have data on this machine. Detection is per-scan rather than cached at
  * boot so that installing one while the colony is running is picked up on the next poll.
+ *
+ * `BOT_CROSSING_HARNESSES`, if set, narrows this to a comma-separated allowlist of ids — a
+ * single-purpose instance (say, a shared-folder colony) shouldn't also surface your personal
+ * Claude Code or Codex sessions just because they happen to be installed on the same machine.
  */
 export async function detectedHarnesses() {
+  const allowlist = process.env.BOT_CROSSING_HARNESSES
+    ? new Set(process.env.BOT_CROSSING_HARNESSES.split(',').map((id) => id.trim()))
+    : null
+  const candidates = allowlist ? HARNESSES.filter((h) => allowlist.has(h.id)) : HARNESSES
   const flags = await Promise.all(
-    HARNESSES.map(async (h) => {
+    candidates.map(async (h) => {
       try {
         return await h.detect()
       } catch {
@@ -28,5 +37,5 @@ export async function detectedHarnesses() {
       }
     })
   )
-  return HARNESSES.filter((_, i) => flags[i])
+  return candidates.filter((_, i) => flags[i])
 }

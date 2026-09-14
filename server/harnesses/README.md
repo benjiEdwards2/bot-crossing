@@ -9,6 +9,12 @@ Nothing in `server/scan.mjs`, `server/api.mjs`, or anywhere under `src/` should 
 If you find yourself editing those to land a harness, that is a bug in this seam — please say so
 in the PR, because the next person will hit it too.
 
+### Choosing harnesses
+
+Set `BOT_CROSSING_HARNESSES` to a comma-separated list of ids (e.g. `file-share`) to restrict
+detection to just those — useful for a single-purpose instance that shouldn't also pick up your
+personal Claude Code or Codex sessions. Unset means every registered harness is eligible, as before.
+
 ## The shape of it
 
 ```js

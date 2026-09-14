@@ -621,6 +621,11 @@ function applyThreads(list) {
   const stats = colony.setThreads(list, archivedSet, hiddenSet, known)
   hud.setStats(stats)
 
+  // A colony fed by nothing but the file-share harness is a single-purpose instance — a
+  // shared folder, not a person's own sessions — so the chrome that only means something for
+  // a coding agent (model, branch, PR state, the suit legend) is dropped for less clutter.
+  hud.setMinimal(list.length > 0 && list.every((t) => t.source === 'file-share'))
+
   legendProjects = colony.plotOrder
     .map((plot) => ({
       name: plot.name,

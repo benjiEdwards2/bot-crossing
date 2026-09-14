@@ -62,6 +62,7 @@ export class Hud {
     this.visible = true
     this._last = {}
     this.hiddenOpen = false
+    this.minimal = false
 
     this.el = document.createElement('div')
     this.el.className = 'hud'
@@ -389,6 +390,22 @@ export class Hud {
     this.$('.fps').classList.toggle('on', Boolean(this.settings.get('showFps')))
   }
 
+  /**
+   * A colony fed by nothing but people sharing a folder, rather than a coding agent: the
+   * chrome that only means something for a thread (model, branch, the suit legend, starting
+   * a fresh session) is dropped. Toggled with a class — see `.hud.minimal` in styles.css —
+   * so the render code below never has to know this exists.
+   */
+  setMinimal(minimal) {
+    minimal = Boolean(minimal)
+    if (this.minimal === minimal) return
+    this.minimal = minimal
+    this.el.classList.toggle('minimal', minimal)
+    // The "N repos" heading reads "people" instead — that's text, not CSS, so force the
+    // legend to redraw next time even though its own signature hasn't changed.
+    this._last.legend = null
+  }
+
   setStats(stats) {
     for (const def of STAT_DEFS) {
       const n = stats[def.key] ?? 0
@@ -430,7 +447,9 @@ export class Hud {
       b.addEventListener('click', () => this.actions.pickProject?.(p.name))
       wrap.appendChild(b)
     }
-    this.$('.sec-head span').textContent = `${projects.length} repo${projects.length === 1 ? '' : 's'}`
+    this.$('.sec-head span').textContent = this.minimal
+      ? `${projects.length} people`
+      : `${projects.length} repo${projects.length === 1 ? '' : 's'}`
 
     // The hidden list is its own block at the foot of the sidebar: collapsed by default, because
     // the whole point of hiding a repo is not to look at it.
@@ -595,8 +614,8 @@ export class Hud {
     ]
     // The repo is the panel's own heading now, so the card says what the *thread* is.
     if (thread.worktree) bits.push(`<span class="tag">⑂ ${escapeHtml(thread.worktree)}</span>`)
-    if (thread.gitBranch) bits.push(`<span class="tag">${escapeHtml(thread.gitBranch)}</span>`)
-    if (thread.model) bits.push(`<span class="tag">${escapeHtml(shortModel(thread.model))}</span>`)
+    if (thread.gitBranch) bits.push(`<span class="tag tag-branch">${escapeHtml(thread.gitBranch)}</span>`)
+    if (thread.model) bits.push(`<span class="tag tag-model">${escapeHtml(shortModel(thread.model))}</span>`)
     bits.push(`<span>${ago(thread.lastActivityAt)}</span>`)
     meta.innerHTML = bits.join('')
 
@@ -1024,7 +1043,7 @@ const TEMPLATE = `
         <div class="k"><span>Open thread</span><kbd>Enter</kbd></div>
         <div class="k"><span>Mark viewed</span><kbd>V</kbd></div>
         <div class="k"><span>Archive</span><kbd>A</kbd></div>
-        <div class="k"><span>New conversation</span><kbd>C</kbd></div>
+        <div class="k key-new-session"><span>New conversation</span><kbd>C</kbd></div>
         <div class="k"><span>Orbit mode</span><kbd>O</kbd></div>
         <div class="k"><span>Change planet</span><kbd>Tab</kbd></div>
         <div class="k"><span>Time of day</span><kbd>L</kbd></div>
@@ -1039,8 +1058,10 @@ const TEMPLATE = `
       <div class="legend-row"><i class="badge" style="background:#16301f;color:#7fd39a">⚒</i> running right now, building</div>
       <div class="legend-row"><i class="badge" style="background:#332b12;color:#e6c67f">✓</i> its pull request landed</div>
       <div class="legend-row"><i class="badge" style="background:#1d1f2e;color:#a9a8c0">z</i> nothing for three days</div>
-      <div class="legend-head">Suit colours — which model is inside</div>
-      ${MODEL_LEGEND.map((m) => `<div class="legend-row"><i class="suit" style="background:${hex(m.tone)}"></i> ${m.label}</div>`).join('\n      ')}
+      <div class="suit-legend">
+        <div class="legend-head">Suit colours — which model is inside</div>
+        ${MODEL_LEGEND.map((m) => `<div class="legend-row"><i class="suit" style="background:${hex(m.tone)}"></i> ${m.label}</div>`).join('\n        ')}
+      </div>
     </div>
     <div style="margin-top:18px;display:flex;justify-content:flex-end">
       <button class="btn primary" id="btn-help-close">Got it</button>
