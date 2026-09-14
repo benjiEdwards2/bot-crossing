@@ -3,6 +3,7 @@ import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js'
 import { DECK_TEXTURE_SCALE, KERB_UV, deckSurface, kerbSurface } from './surfaces.js'
 import { atlasTexture, hasPart, part } from './kit.js'
 import { mulberry } from './planet.js'
+import { clutterSubset } from './clutter-density.js'
 
 /**
  * Project plots — the fenced-off sections of the map, one per repo.
@@ -406,7 +407,7 @@ function hexPrism(radius, height) {
 // ── plot mesh ─────────────────────────────────────────────────────────────────────────
 
 export class Plot {
-  constructor({ id, name, index, cells, accent }) {
+  constructor({ id, name, index, cells, accent, clutterDensity = 1 }) {
     this.id = id
     this.name = name
     this.index = index
@@ -452,7 +453,7 @@ export class Plot {
     this._buildDeck()
     this._buildBorder()
     this._buildPosts()
-    this._buildClutter()
+    this._buildClutter(clutterDensity)
     this.slots = this._buildSlots()
   }
 
@@ -594,14 +595,18 @@ export class Plot {
    * has to be added to the navigation grid and nobody ends up walking through a barrel.
    *
    * Seeded off the plot's own name, so a repo's yard is laid out the same on every reload.
+   *
+   * Every candidate prop is kept, not merged: the "Deck clutter" slider thins them live, and
+   * `setClutterDensity` rebuilds the merged mesh — and the navigation footprints with it — out
+   * of whichever ones survive.
    */
-  _buildClutter() {
+  _buildClutter(density = 1) {
     const props = ['containers_A', 'containers_B', 'containers_C', 'containers_D', 'cargo_A', 'cargo_B', 'cargo_A_packed', 'cargo_B_packed', 'lights']
     if (!props.every((n) => hasPart(n))) return
 
     const rand = mulberry(hashString(this.id) + 17)
-    const parts = []
-    /** Plot-local footprints, for the colony to hand to the navigation grid. */
+    /** Every candidate prop: its geometry, its plot-local footprint, and its place in the thinning order. */
+    this._clutterProps = []
     this.clutterSpots = []
 
     this.localCenters.forEach(({ x, z }) => {
@@ -631,18 +636,38 @@ export class Plot {
         const box = geo.boundingBox
         const spread = Math.max(box.max.x - box.min.x, box.max.z - box.min.z) * 0.5
         geo.translate(px, DECK_TOP, pz)
-        parts.push(geo)
-        this.clutterSpots.push({ x: px, z: pz, r: Math.max(0.45, spread * 0.86) })
+        this._clutterProps.push({ geo, spot: { x: px, z: pz, r: Math.max(0.45, spread * 0.86) }, rank: 0 })
       }
     })
 
-    if (!parts.length) return
-    const geo = BufferGeometryUtils.mergeGeometries(parts, false)
-    parts.forEach((g) => g.dispose())
-    this.clutter = new THREE.Mesh(
-      geo,
-      new THREE.MeshStandardMaterial({ map: atlasTexture(), roughness: 0.6, metalness: 0.05 })
-    )
+    // Ranks are dealt only once every prop is placed, so the draws above keep the order they
+    // have always had and a full-density deck comes out exactly as it did before the slider.
+    for (const prop of this._clutterProps) prop.rank = rand()
+
+    this._clutterMaterial = new THREE.MeshStandardMaterial({ map: atlasTexture(), roughness: 0.6, metalness: 0.05 })
+    this.setClutterDensity(density)
+  }
+
+  /**
+   * Thin the deck's props to `density` (0..1), rebuilding the merged mesh and the navigation
+   * footprints together so the crew never walks through a crate that is still drawn, nor around
+   * one that has gone.
+   */
+  setClutterDensity(density) {
+    if (!this._clutterProps) return
+    this.clutterDensity = density
+    const kept = clutterSubset(this._clutterProps, density)
+    this.clutterSpots = kept.map((p) => p.spot)
+
+    if (this.clutter) {
+      this.group.remove(this.clutter)
+      this.clutter.geometry.dispose()
+      this.clutter = null
+    }
+    if (!kept.length) return
+
+    const geo = BufferGeometryUtils.mergeGeometries(kept.map((p) => p.geo), false)
+    this.clutter = new THREE.Mesh(geo, this._clutterMaterial)
     this.clutter.castShadow = true
     this.clutter.receiveShadow = true
     this.group.add(this.clutter)
@@ -690,6 +715,10 @@ export class Plot {
         o.material.dispose()
       }
     })
+    // The candidate props are held off the graph — every one the slider has thinned away is
+    // reachable from here and nowhere else — so the traversal above cannot see them.
+    for (const prop of this._clutterProps || []) prop.geo.dispose()
+    this._clutterMaterial?.dispose()
   }
 }
 
