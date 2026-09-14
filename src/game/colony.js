@@ -254,6 +254,7 @@ export class Colony {
     this.astronauts.onSettingsChanged(changed)
     this.particles.onSettingsChanged(changed)
     if (changed.has('showLabels')) this._syncLabels()
+    if (changed.has('showFlags')) this._syncFlags()
     if (changed.has('timeOfDay')) this.sky.setTime(this.settings.get('timeOfDay'))
   }
 
@@ -437,6 +438,7 @@ export class Colony {
       for (const cell of plot.cells) this.deckedCells.add(`${cell.q},${cell.r}`)
     }
     this._syncLabels()
+    this._syncFlags()
   }
 
   /**
@@ -655,15 +657,18 @@ export class Colony {
   }
 
   /**
-   * Names fade in for the plots that have something going on, and for whichever one you are
-   * pointing at. Everywhere else the colony stays unlabelled.
+   * Every zone wears its name. A colony where only the busy plots are labelled is a map you
+   * have to hover your way around to read, so the quiet ones are named too — held back at
+   * under half opacity, which keeps them legible without letting a dormant repo shout as
+   * loudly as one that has somebody working in it.
    */
   _updateLabels(dt) {
     const show = this.uiVisible && this.settings.get('showLabels')
     for (const plot of this.plotOrder) {
       const label = plot.label
       if (!label) continue
-      const wanted = show && (this.activePlots.has(plot.id) || this.hoveredPlot === plot) ? 1 : 0
+      const lit = this.activePlots.has(plot.id) || this.hoveredPlot === plot
+      const wanted = show ? (lit ? 1 : 0.45) : 0
       const next = THREE.MathUtils.damp(label.material.opacity, wanted, 9, dt)
       label.material.opacity = next
       label.visible = next > 0.01
@@ -827,7 +832,11 @@ export class Colony {
 
   _updatePlots(night, elapsed) {
     const urgent = this.urgentPlots
-    for (const plot of this.plotOrder) plot.setNight(night, urgent?.has(plot.id) ?? false, elapsed)
+    const reduced = this.settings.get('reducedMotion')
+    for (const plot of this.plotOrder) {
+      plot.setNight(night, urgent?.has(plot.id) ?? false, elapsed)
+      plot.animateFlag(elapsed, reduced)
+    }
   }
 
   _updateScaffolds() {
@@ -868,6 +877,14 @@ export class Colony {
   _syncLabels() {
     // Visibility is per-label now; the group only ever hides everything at once.
     this.labelGroup.visible = true
+  }
+
+  /** Flags are part of the world rather than the HUD, so they only answer to their setting. */
+  _syncFlags() {
+    const show = this.settings.get('showFlags')
+    for (const plot of this.plotOrder) {
+      if (plot.flag) plot.flag.visible = show
+    }
   }
 
   dispose() {

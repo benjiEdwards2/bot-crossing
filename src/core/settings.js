@@ -154,6 +154,7 @@ const DEFAULTS = {
   autoFrame: false, // ease the camera back to isometric when you stop dragging; opt-in
   showFps: false,
   showLabels: true,
+  showFlags: true,
   reducedMotion: false,
 }
 
