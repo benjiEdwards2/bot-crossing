@@ -155,6 +155,7 @@ const DEFAULTS = {
   showFps: false,
   showLabels: true,
   clutterDensity: 1.0, // 0..1 — share of the decorative crates and floodlights kept on each deck
+  showFlags: true,
   reducedMotion: false,
 }
 

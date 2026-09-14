@@ -55,6 +55,10 @@ export const DECK_TOP = 0.45
 const DECK_SKIRT = 0.4
 /** The whole prism: the rim you can see, plus the skirt buried under it. */
 const DECK_HEIGHT = DECK_TOP + DECK_SKIRT
+/** The zone's flagpole: tall enough to clear the habitats standing around it. */
+const FLAG_HEIGHT = 4.2
+const BANNER_W = 3.2
+const BANNER_H = 1.0
 /** Building slots per cell: one in the middle and six around it. */
 const SLOTS_PER_CELL = 7
 const MAX_CELLS = 9
@@ -453,6 +457,7 @@ export class Plot {
     this._buildDeck()
     this._buildBorder()
     this._buildPosts()
+    this._buildFlag()
     this._buildClutter(clutterDensity)
     this.slots = this._buildSlots()
   }
@@ -587,6 +592,64 @@ export class Plot {
   }
 
   /**
+   * A named flag on a pole at the middle of the zone.
+   *
+   * The floating name plate reads the same size from anywhere, which makes it a label *on*
+   * the map rather than a thing standing in it — fine for finding a zone, no use at all for
+   * telling you whose ground you are walking across. The banner is a physical object: it is
+   * lit like everything else, it grows and shrinks with distance, and it carries the repo
+   * name in the same hand the plates use so the two read as one naming.
+   */
+  _buildFlag() {
+    this.flag = new THREE.Group()
+    this.flag.position.set(this.labelAnchor.x - this.center.x, 0, this.labelAnchor.z - this.center.z)
+    // The banner has one face and does not turn, so it is aimed down the barrel of the
+    // camera's resting azimuth (ISO_AZIMUTHS[0] in core/camera.js): a plane's normal is +z,
+    // and this yaw swings it onto the direction the default isometric view looks from.
+    this.flag.rotation.y = Math.PI / 4
+
+    const pole = new THREE.CylinderGeometry(0.06, 0.09, FLAG_HEIGHT, 6)
+    pole.translate(0, DECK_TOP + FLAG_HEIGHT / 2, 0)
+    const finial = new THREE.SphereGeometry(0.13, 10, 8)
+    finial.translate(0, DECK_TOP + FLAG_HEIGHT + 0.1, 0)
+
+    const poleMesh = new THREE.Mesh(
+      pole,
+      new THREE.MeshStandardMaterial({ color: 0x9a9aa2, roughness: 0.7, metalness: 0.3 })
+    )
+    poleMesh.castShadow = true
+    const finialMesh = new THREE.Mesh(finial, new THREE.MeshBasicMaterial({ color: this.accent, toneMapped: true }))
+
+    // Segmented across its width so the wave has somewhere to go; one segment tall, because
+    // the ripple only ever runs along the free edge.
+    const cloth = new THREE.PlaneGeometry(BANNER_W, BANNER_H, 8, 1)
+    // Hung off the pole rather than centred on it: x runs 0 at the mast to BANNER_W at the
+    // free edge, which is exactly the term the wave is scaled by.
+    cloth.translate(BANNER_W / 2, DECK_TOP + FLAG_HEIGHT - 0.15 - BANNER_H / 2, 0)
+    const texture = bannerTexture(this.name, this.accent)
+    this.banner = new THREE.Mesh(
+      cloth,
+      new THREE.MeshStandardMaterial({ map: texture, side: THREE.DoubleSide, roughness: 0.9, metalness: 0 })
+    )
+    this._bannerBase = cloth.attributes.position.array.slice()
+
+    this.flag.add(poleMesh, finialMesh, this.banner)
+    this.group.add(this.flag)
+  }
+
+  /** Ripple the cloth. Anchored edge stays on the mast; the free edge does the moving. */
+  animateFlag(elapsed, reduced) {
+    if (!this.banner || !this.flag.visible) return
+    const pos = this.banner.geometry.attributes.position
+    const base = this._bannerBase
+    for (let i = 0; i < pos.count; i++) {
+      const x = base[i * 3]
+      pos.setZ(i, reduced ? base[i * 3 + 2] : Math.sin(elapsed * 2.2 + x * 2.0) * 0.08 * (x / BANNER_W))
+    }
+    pos.needsUpdate = true
+  }
+
+  /**
    * Ground clutter — crates, drums and a floodlight or two, hugging the kerb.
    *
    * A plot with buildings on its slots and nothing anywhere else reads as a car park. This
@@ -709,6 +772,10 @@ export class Plot {
   }
 
   dispose() {
+    // The banner's canvas texture is this plot's alone, and a material dispose does not take
+    // its maps with it. Everything else on a plot samples a shared singleton — the deck
+    // plate, the kerb strip, the kit atlas — which must outlive any one zone.
+    this.banner?.material.map?.dispose()
     this.group.traverse((o) => {
       if (o.isMesh) {
         o.geometry.dispose()
@@ -729,20 +796,29 @@ export class Plot {
  * shader, so they stay upright and legible from any camera angle without a per-frame
  * lookAt on the CPU.
  */
-export function createLabel(text, accent, pixelRatio = 4) {
-  const fontSize = 34
-  const font = `500 ${fontSize}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif`
+/**
+ * One hand for every zone name in the world. The plates and the flags are the same naming
+ * seen twice, so they share the face, the weight and the halo recipe — only the backing
+ * differs.
+ */
+const NAME_FONT_SIZE = 34
+const NAME_FONT = `500 ${NAME_FONT_SIZE}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif`
+
+function measureName(text, font = NAME_FONT) {
+  const measure = document.createElement('canvas').getContext('2d')
+  measure.font = font
+  return Math.ceil(measure.measureText(text).width)
+}
+
+/** The name plate's own canvas: accent dot, name, nothing behind either. */
+function paintNameCanvas(text, accent, pixelRatio) {
   const dot = 9
   const gap = 10
   const pad = 14
 
-  const measure = document.createElement('canvas').getContext('2d')
-  measure.font = font
-  const textWidth = Math.ceil(measure.measureText(text).width)
-
   const canvas = document.createElement('canvas')
-  const w = textWidth + dot + gap + pad * 2
-  const h = fontSize + pad * 2
+  const w = measureName(text) + dot + gap + pad * 2
+  const h = NAME_FONT_SIZE + pad * 2
   canvas.width = Math.ceil(w * pixelRatio)
   canvas.height = Math.ceil(h * pixelRatio)
   const c = canvas.getContext('2d')
@@ -751,7 +827,7 @@ export function createLabel(text, accent, pixelRatio = 4) {
   // No plate and no outline — legibility comes from a soft dark halo behind the glyphs,
   // which sits on grass, regolith or rust equally well and disappears the moment you stop
   // reading it. A small accent dot is all that ties the name to its zone.
-  c.font = font
+  c.font = NAME_FONT
   c.textAlign = 'left'
   c.textBaseline = 'middle'
   const textX = pad + dot + gap
@@ -772,6 +848,75 @@ export function createLabel(text, accent, pixelRatio = 4) {
   c.fill()
   c.fillStyle = '#f4f2ee'
   c.fillText(text, textX, midY)
+
+  return { canvas, w, h }
+}
+
+/**
+ * The flag's cloth: the zone colour with the name across it.
+ *
+ * The fill is the accent taken down a stop, because a banner painted in the same value as
+ * the kerb it stands over reads as a patch of the same object; darker, it reads as dyed
+ * cloth. The lighter stripe is the hem at the mast, which is what tells you at a glance
+ * which end is tied on.
+ */
+function bannerTexture(text, accent, pixelRatio = 4) {
+  const w = 320
+  const h = 100
+  const stripe = 10
+  const pad = 16
+  // The plates hold a fixed screen size; the cloth does not, so its lettering is set larger
+  // and heavier than theirs to still read from the resting camera.
+  const fontAt = (size) => `600 ${size}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif`
+
+  const canvas = document.createElement('canvas')
+  canvas.width = w * pixelRatio
+  canvas.height = h * pixelRatio
+  const c = canvas.getContext('2d')
+  c.scale(pixelRatio, pixelRatio)
+
+  const base = new THREE.Color(accent)
+  c.fillStyle = '#' + base.clone().multiplyScalar(0.85).getHexString()
+  c.fillRect(0, 0, w, h)
+  c.fillStyle = '#' + base.clone().lerp(new THREE.Color(0xffffff), 0.35).getHexString()
+  c.fillRect(0, 0, stripe, h)
+
+  c.textAlign = 'center'
+  c.textBaseline = 'middle'
+  const room = w - stripe - pad * 2
+  // A longer name is set smaller, down to the plates' own size; past that it is cut, so no
+  // flag ever carries a name too small to read.
+  let size = 52
+  while (size > NAME_FONT_SIZE && measureName(text, fontAt(size)) > room) size -= 2
+  const font = fontAt(size)
+  c.font = font
+  let name = text
+  if (measureName(name, font) > room) {
+    while (name.length > 1 && measureName(name + '…', font) > room) name = name.slice(0, -1)
+    name += '…'
+  }
+  const textX = stripe + pad + room / 2
+  const midY = h / 2
+
+  c.shadowColor = 'rgba(0,0,0,0.85)'
+  c.shadowBlur = 9
+  c.fillStyle = 'rgba(0,0,0,0.9)'
+  for (let i = 0; i < 3; i++) c.fillText(name, textX, midY) // the same halo the plates use
+  c.shadowBlur = 0
+  c.fillStyle = '#f4f2ee'
+  c.fillText(name, textX, midY)
+
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.colorSpace = THREE.SRGBColorSpace
+  texture.minFilter = THREE.LinearMipmapLinearFilter
+  texture.magFilter = THREE.LinearFilter
+  texture.generateMipmaps = true
+  texture.anisotropy = 8
+  return texture
+}
+
+export function createLabel(text, accent, pixelRatio = 4) {
+  const { canvas, w, h } = paintNameCanvas(text, accent, pixelRatio)
 
   const texture = new THREE.CanvasTexture(canvas)
   texture.colorSpace = THREE.SRGBColorSpace

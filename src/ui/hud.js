@@ -249,7 +249,8 @@ export class Hud {
       this._toggle('Project labels', 'showLabels'),
       this._slider('Deck clutter', 'clutterDensity', 0, 1, 0.05, (v) => `${Math.round(v * 100)}%`, 'Thins the crates and floodlights on each deck. Lamps, kerbs and buildings stay.'),
       this._toggle('Reduced motion', 'reducedMotion', 'Calms the bobbing and the camera easing.'),
-      this._toggle('Show FPS', 'showFps')
+      this._toggle('Show FPS', 'showFps'),
+      this._toggle('Zone flags', 'showFlags', 'A named banner on a pole in the middle of every zone.')
     )
     body.appendChild(view)
   }
