@@ -247,6 +247,7 @@ export class Hud {
       this._toggle('Return to isometric', 'autoFrame', 'Eases the angle back when you stop dragging.'),
       this._slider('Field of view', 'fov', 20, 60, 1, (v) => `${v}°`),
       this._toggle('Project labels', 'showLabels'),
+      this._slider('Deck clutter', 'clutterDensity', 0, 1, 0.05, (v) => `${Math.round(v * 100)}%`, 'Thins the crates and floodlights on each deck. Lamps, kerbs and buildings stay.'),
       this._toggle('Reduced motion', 'reducedMotion', 'Calms the bobbing and the camera easing.'),
       this._toggle('Show FPS', 'showFps')
     )

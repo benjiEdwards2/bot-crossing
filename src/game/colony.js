@@ -254,6 +254,12 @@ export class Colony {
     this.astronauts.onSettingsChanged(changed)
     this.particles.onSettingsChanged(changed)
     if (changed.has('showLabels')) this._syncLabels()
+    if (changed.has('clutterDensity')) {
+      const density = this.settings.get('clutterDensity')
+      for (const plot of this.plotOrder) plot.setClutterDensity(density)
+      // The crates the slider just took away were obstacles a moment ago.
+      if (this.nav) this._rebuildNavigation()
+    }
     if (changed.has('timeOfDay')) this.sky.setTime(this.settings.get('timeOfDay'))
   }
 
@@ -416,7 +422,7 @@ export class Colony {
       const cells = layout.get(name)
       if (!cells?.length) return
       const accent = this._pickAccent(name)
-      const plot = new Plot({ id: name, name, index, cells, accent })
+      const plot = new Plot({ id: name, name, index, cells, accent, clutterDensity: this.settings.get('clutterDensity') })
       plot.signature = wanted.get(name)
       this.plots.set(name, plot)
       this.plotGroup.add(plot.group)

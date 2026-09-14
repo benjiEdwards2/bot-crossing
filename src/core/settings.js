@@ -154,6 +154,7 @@ const DEFAULTS = {
   autoFrame: false, // ease the camera back to isometric when you stop dragging; opt-in
   showFps: false,
   showLabels: true,
+  clutterDensity: 1.0, // 0..1 — share of the decorative crates and floodlights kept on each deck
   reducedMotion: false,
 }
 
