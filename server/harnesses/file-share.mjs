@@ -48,18 +48,42 @@ async function readState() {
   }
 }
 
+/** What a file is and what it opens in, from its extension — the card's first words. */
+const OPENS_IN = {
+  '.docx': 'Word', '.docm': 'Word', '.doc': 'Word', '.rtf': 'Word',
+  '.xlsx': 'Excel', '.xlsm': 'Excel', '.xlsb': 'Excel', '.xls': 'Excel', '.csv': 'Excel',
+  '.pptx': 'PowerPoint', '.pptm': 'PowerPoint', '.ppt': 'PowerPoint',
+  '.vsdx': 'Visio', '.msg': 'Outlook', '.one': 'OneNote', '.pdf': 'PDF reader',
+  '.dwg': 'AutoCAD', '.dxf': 'AutoCAD', '.txt': 'Notepad', '.md': 'text editor',
+  '.png': 'image viewer', '.jpg': 'image viewer', '.jpeg': 'image viewer',
+}
+export function describeFile(docPath) {
+  const ext = path.extname(docPath).toLowerCase()
+  if (!ext) return 'no extension'
+  const app = OPENS_IN[ext]
+  return app ? `${ext} · opens in ${app}` : ext
+}
+
+/** 437 B, 12.4 KB, 3.1 MB — the size a person would say, not a raw byte count. */
+export function formatBytes(n) {
+  const b = Number(n) || 0
+  if (b < 1024) return `${b} B`
+  if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`
+  if (b < 1024 * 1024 * 1024) return `${(b / (1024 * 1024)).toFixed(1)} MB`
+  return `${(b / (1024 * 1024 * 1024)).toFixed(2)} GB`
+}
+
 /** Pure: turns a ledger into threads. Exported so tests can exercise it without touching disk. */
 export function threadsFromLedger(ledger, now, cfg) {
   const activeWindowMs = cfg?.activeWindowMs || DEFAULT_ACTIVE_WINDOW_MS
   const threads = []
   for (const [person, docs] of Object.entries(ledger || {})) {
     for (const [docPath, doc] of Object.entries(docs || {})) {
-      const mb = (doc.bytesChanged / (1024 * 1024)).toFixed(2)
       const n = doc.changes || 0
       threads.push({
         id: threadId(person, docPath),
         title: path.basename(docPath),
-        preview: `${n} edit${n === 1 ? '' : 's'} · ${mb} MB changed · last ${new Date(doc.lastChange).toLocaleString()}`,
+        preview: `${describeFile(docPath)} · ${formatBytes(doc.bytesChanged)} changed · ${n} edit${n === 1 ? '' : 's'}`,
         project: person,
         projectPath: path.dirname(docPath),
         worktree: '',

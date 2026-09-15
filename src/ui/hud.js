@@ -616,6 +616,9 @@ export class Hud {
     if (thread.worktree) bits.push(`<span class="tag">⑂ ${escapeHtml(thread.worktree)}</span>`)
     if (thread.gitBranch) bits.push(`<span class="tag tag-branch">${escapeHtml(thread.gitBranch)}</span>`)
     if (thread.model) bits.push(`<span class="tag tag-model">${escapeHtml(shortModel(thread.model))}</span>`)
+    // A shared-folder document has no branch or model; its adapter puts what matters (file
+    // kind, what it opens in, how much changed) in the preview, so that is the card's tag.
+    if (this.minimal && thread.preview) bits.push(`<span class="tag">${escapeHtml(thread.preview)}</span>`)
     bits.push(`<span>${ago(thread.lastActivityAt)}</span>`)
     meta.innerHTML = bits.join('')
 
